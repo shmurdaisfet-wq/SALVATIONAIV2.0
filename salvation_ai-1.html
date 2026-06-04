@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" async onerror="console.warn('Leaflet CDN blocked - map unavailable')"></script>
+<style>
+    body { background-color: #0a0a0a; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    #navbar { display: flex; flex-wrap: wrap; background-color: #111111; padding: 10px; gap: 8px; }
+    .navbtn { background-color: #1a1a2e; color: #ffffff; border: 1px solid #0077ff; padding: 12px 16px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    #mainScreen { padding: 20px; color: #ffffff; font-size: 16px; }
+    .critical { color: #ff0000; font-size: 32px; font-weight: bold; }
+    .section-title-red { color: #ff0000; font-weight: bold; margin-bottom: 5px; }
+    .section-title-blue { color: #0077ff; font-weight: bold; margin-bottom: 5px; }
+    .section-title-amber { color: #ffaa00; font-weight: bold; margin-bottom: 5px; }
+    .section-title-green { color: #00ff00; font-weight: bold; margin-bottom: 5px; }
+    .section-text { color: #cccccc; font-size: 15px; margin-bottom: 20px; }
+    .incident-title { color: #ffffff; font-size: 20px; font-weight: bold; margin: 5px 0; }
+    .incident-label { color: #ff0000; font-size: 13px; margin: 0; }
+    .incident-header { border-left: 4px solid #ff0000; padding-left: 15px; margin-bottom: 20px; }
+    .feed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .feed-card { background: #111111; border: 1px solid #333333; border-radius: 6px; overflow: hidden; cursor: pointer; }
+    .feed-card:hover { border-color: #0077ff; }
+    .feed-card.maximized { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; border-radius: 0; display: flex; flex-direction: column; }
+    .feed-screen { background: #000000; height: 120px; display: flex; align-items: center; justify-content: center; position: relative; }
+    .feed-card.maximized .feed-screen { flex: 1; height: auto; }
+    .feed-status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .feed-label { padding: 6px 8px; display: flex; justify-content: space-between; align-items: center; }
+    .feed-name { color: #ffffff; font-size: 12px; font-weight: bold; }
+    .feed-info { color: #aaaaaa; font-size: 10px; }
+
+    /* -- SYSTEMS MONITOR -- */
+    .sys-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .sys-title { color: #0077ff; font-size: 18px; font-weight: bold; }
+    .sys-timestamp { color: #555555; font-size: 11px; font-family: monospace; }
+    .sys-section-label {
+        color: #555555; font-size: 10px; font-weight: bold; letter-spacing: 2px;
+        text-transform: uppercase; margin: 16px 0 8px 0; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px;
+    }
+    .sys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .sys-card {
+        background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px;
+        padding: 10px 12px; position: relative; overflow: hidden;
+    }
+    .sys-card::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; border-radius: 3px 0 0 3px;
+    }
+    .sys-card.ok::before { background: #00ff00; }
+    .sys-card.warn::before { background: #ffaa00; }
+    .sys-card.critical::before { background: #ff0000; }
+    .sys-card.offline::before { background: #444444; }
+    .sys-card-name { color: #aaaaaa; font-size: 10px; font-weight: bold; letter-spacing: 1px; margin: 0 0 4px 0; }
+    .sys-card-value { color: #ffffff; font-size: 18px; font-weight: bold; margin: 0; line-height: 1; }
+    .sys-card-sub { color: #555555; font-size: 10px; margin: 3px 0 6px 0; }
+    .sys-bar-track { background: #1a1a1a; border-radius: 2px; height: 4px; width: 100%; }
+    .sys-bar-fill { height: 4px; border-radius: 2px; transition: width 1s ease; }
+    .sys-bar-fill.ok { background: #00ff00; }
+    .sys-bar-fill.warn { background: #ffaa00; }
+    .sys-bar-fill.critical { background: #ff0000; }
+    .sys-status-badge {
+        display: inline-block; font-size: 9px; font-weight: bold; padding: 2px 6px;
+        border-radius: 3px; letter-spacing: 1px; margin-top: 4px;
+    }
+    .sys-status-badge.ok { background: #001a00; color: #00ff00; border: 1px solid #004400; }
+    .sys-status-badge.warn { background: #1a1000; color: #ffaa00; border: 1px solid #443300; }
+    .sys-status-badge.critical { background: #1a0000; color: #ff0000; border: 1px solid #440000; }
+    .sys-status-badge.offline { background: #111111; color: #555555; border: 1px solid #333333; }
+    .sys-alert-bar {
+        background: #1a0000; border: 1px solid #440000; border-radius: 6px;
+        padding: 8px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .sys-alert-bar.warn { background: #1a1000; border-color: #443300; }
+    .sys-alert-dot { width: 6px; height: 6px; border-radius: 50%; background: #ff0000; animation: pulse-dot 1s infinite; flex-shrink: 0; }
+    .sys-alert-dot.warn { background: #ffaa00; animation: none; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    @keyframes alarm-flash { 0%{opacity:1} 100%{opacity:0.7} }
+    .sys-alert-text { color: #ff4444; font-size: 11px; font-weight: bold; }
+    .sys-alert-text.warn { color: #ffaa00; }
+    .sys-vehicle-card {
+        background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px;
+        padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 12px;
+    }
+    .sys-vehicle-icon { font-size: 22px; width: 32px; text-align: center; flex-shrink: 0; }
+    .sys-vehicle-info { flex: 1; }
+    .sys-vehicle-name { color: #ffffff; font-size: 13px; font-weight: bold; margin: 0 0 2px 0; }
+    .sys-vehicle-type { color: #555555; font-size: 10px; margin: 0 0 4px 0; }
+    .sys-vehicle-metrics { display: flex; gap: 10px; }
+    .sys-metric { text-align: center; }
+    .sys-metric-val { color: #ffffff; font-size: 12px; font-weight: bold; display: block; }
+    .sys-metric-lbl { color: #555555; font-size: 9px; letter-spacing: 1px; }
+
+    /* -- INCIDENT LOG -- */
+    .log-section-label {
+        color: #555555; font-size: 10px; font-weight: bold; letter-spacing: 2px;
+        text-transform: uppercase; margin: 14px 0 8px 0; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px;
+    }
+    .ilog-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .ilog-filter-btn { background: #111111; border: 1px solid #333333; color: #aaaaaa; font-size: 10px; font-weight: bold; padding: 5px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 1px; }
+    .ilog-filter-btn.active { color: #ffffff; }
+    .ilog-filter-btn.all.active     { border-color: #0077ff; color: #0077ff; background: #001133; }
+    .ilog-filter-btn.medical.active  { border-color: #ff4444; color: #ff4444; background: #1a0000; }
+    .ilog-filter-btn.tactical.active { border-color: #ffaa00; color: #ffaa00; background: #1a1000; }
+    .ilog-filter-btn.comms.active    { border-color: #00aaff; color: #00aaff; background: #001a2e; }
+    .ilog-filter-btn.system.active   { border-color: #00ff00; color: #00ff00; background: #001a00; }
+    .ilog-timeline { position: relative; padding-left: 20px; }
+    .ilog-timeline::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: #1e1e1e; }
+    .ilog-entry { position: relative; margin-bottom: 10px; }
+    .ilog-dot { position: absolute; left: -18px; top: 4px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid; }
+    .ilog-dot.medical  { background: #1a0000; border-color: #ff4444; }
+    .ilog-dot.tactical { background: #1a1000; border-color: #ffaa00; }
+    .ilog-dot.comms    { background: #001a2e; border-color: #00aaff; }
+    .ilog-dot.system   { background: #001a00; border-color: #00ff00; }
+    .ilog-dot.manual   { background: #1a001a; border-color: #cc44ff; }
+    .ilog-card { background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px; padding: 8px 10px; }
+    .ilog-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+    .ilog-card-time { color: #444444; font-size: 10px; font-family: monospace; }
+    .ilog-card-cat { font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 3px; letter-spacing: 1px; }
+    .ilog-card-cat.medical  { background: #1a0000; color: #ff4444; border: 1px solid #440000; }
+    .ilog-card-cat.tactical { background: #1a1000; color: #ffaa00; border: 1px solid #443300; }
+    .ilog-card-cat.comms    { background: #001a2e; color: #00aaff; border: 1px solid #003366; }
+    .ilog-card-cat.system   { background: #001a00; color: #00ff00; border: 1px solid #004400; }
+    .ilog-card-cat.manual   { background: #1a001a; color: #cc44ff; border: 1px solid #440044; }
+    .ilog-card-who { color: #666666; font-size: 10px; margin-bottom: 3px; }
+    .ilog-card-text { color: #cccccc; font-size: 12px; line-height: 1.4; }
+    .ilog-add-box { background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px; padding: 12px; margin-top: 6px; }
+    .ilog-add-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .ilog-select { background: #1a1a1a; border: 1px solid #333333; color: #ffffff; font-size: 12px; padding: 6px 8px; border-radius: 4px; flex: 1; min-width: 100px; }
+    .ilog-textarea { background: #1a1a1a; border: 1px solid #333333; color: #ffffff; font-size: 12px; padding: 8px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; resize: none; font-family: monospace; }
+    .ilog-textarea:focus { outline: none; border-color: #0077ff; }
+    .btn-log-entry { background: #00001a; border: 1px solid #0077ff; color: #0077ff; font-size: 12px; font-weight: bold; padding: 8px 16px; border-radius: 4px; cursor: pointer; letter-spacing: 1px; width: 100%; }
+    .btn-log-entry:active { background: #000033; }
+
+    /* -- COMMUNICATIONS -- */
+    .comms-section-label {
+        color: #555555; font-size: 10px; font-weight: bold; letter-spacing: 2px;
+        text-transform: uppercase; margin: 14px 0 8px 0; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px;
+    }
+    .ch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px; }
+    .ch-card {
+        background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px;
+        padding: 10px 12px; position: relative; cursor: pointer; transition: border-color 0.2s;
+    }
+    .ch-card:hover { border-color: #0077ff; }
+    .ch-card.active { border-color: #00ff00; background: #001a00; }
+    .ch-card.busy  { border-color: #ff0000; background: #1a0000; }
+    .ch-card.idle  { border-color: #1e1e1e; }
+    .ch-card.squelch { border-color: #ffaa00; background: #1a1000; }
+    .ch-name { color: #ffffff; font-size: 12px; font-weight: bold; margin: 0 0 2px 0; }
+    .ch-freq { color: #555555; font-size: 10px; font-family: monospace; margin: 0 0 6px 0; }
+    .ch-sig-track { background: #1a1a1a; border-radius: 2px; height: 3px; width: 100%; margin-bottom: 4px; }
+    .ch-sig-fill  { height: 3px; border-radius: 2px; transition: width 1.5s ease; }
+    .ch-sig-fill.strong { background: #00ff00; }
+    .ch-sig-fill.medium { background: #ffaa00; }
+    .ch-sig-fill.weak   { background: #ff4444; }
+    .ch-meta { display: flex; justify-content: space-between; align-items: center; }
+    .ch-status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .ch-status-txt { font-size: 9px; font-weight: bold; letter-spacing: 1px; }
+    .ch-enc { color: #0077ff; font-size: 9px; }
+
+    .comms-log { background: #0a0a0a; border: 1px solid #1e1e1e; border-radius: 6px; padding: 8px; max-height: 220px; overflow-y: auto; }
+    .log-entry { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid #111111; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #444444; font-size: 10px; font-family: monospace; flex-shrink: 0; padding-top: 1px; }
+    .log-caller { font-size: 11px; font-weight: bold; flex-shrink: 0; min-width: 70px; }
+    .log-text { color: #cccccc; font-size: 11px; line-height: 1.4; }
+    .log-ch { color: #333333; font-size: 9px; flex-shrink: 0; padding-top: 2px; }
+    .log-entry.incoming .log-caller { color: #0077ff; }
+    .log-entry.outgoing .log-caller { color: #00ff00; }
+    .log-entry.priority .log-caller { color: #ff4444; }
+
+    .broadcast-box { background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px; padding: 12px; margin-top: 6px; }
+    .broadcast-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .broadcast-select {
+        background: #1a1a1a; border: 1px solid #333333; color: #ffffff;
+        font-size: 12px; padding: 6px 8px; border-radius: 4px; flex: 1; min-width: 100px;
+    }
+    .broadcast-input {
+        background: #1a1a1a; border: 1px solid #333333; color: #ffffff;
+        font-size: 12px; padding: 8px 10px; border-radius: 4px; width: 100%; box-sizing: border-box;
+        font-family: monospace; resize: none;
+    }
+    .broadcast-input:focus { outline: none; border-color: #0077ff; }
+    .btn-transmit {
+        background: #003300; border: 1px solid #00ff00; color: #00ff00;
+        font-size: 12px; font-weight: bold; padding: 8px 16px; border-radius: 4px;
+        cursor: pointer; letter-spacing: 1px; width: 100%;
+    }
+    .btn-transmit:active { background: #005500; }
+    .btn-transmit.transmitting { background: #005500; animation: tx-pulse 0.5s infinite; }
+    @keyframes tx-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .ptt-btn {
+        background: #1a0000; border: 2px solid #ff0000; color: #ff4444;
+        font-size: 13px; font-weight: bold; padding: 12px; border-radius: 6px;
+        cursor: pointer; letter-spacing: 2px; text-align: center; margin-top: 6px;
+        user-select: none;
+    }
+    .ptt-btn:active, .ptt-btn.held { background: #440000; border-color: #ff6666; color: #ffffff; }
+</style>
+</head>
+<body>
+
+<div id="navbar">
+    <button class="navbtn" onclick="showScreen('Map')">Map</button>
+    <button class="navbtn" onclick="showScreen('Briefing')">Briefing</button>
+    <button class="navbtn" onclick="showScreen('Video Feed')">Video Feed</button>
+    <button class="navbtn" onclick="showScreen('Systems Monitor')">Systems</button>
+    <button class="navbtn" onclick="showScreen('Threat Alerts')">Threats</button>
+    <button class="navbtn" onclick="showScreen('Communications')">Comms</button>
+    <button class="navbtn" onclick="showScreen('Resources')">Resources</button>
+    <button class="navbtn" onclick="showScreen('Incident Log')">Log</button>
+    <button class="navbtn" onclick="showScreen('Crew Status')">Crew</button>
+</div>
+
+<div id="mainScreen">Welcome to SALVATION AI. Select a screen.</div>
+
+<script>
+
+// -- SYSTEMS MONITOR STATE --
+var sysInterval = null;
+var sysData = {
+    // Main vehicle systems
+    fuel:        { value: 78,  unit: '%',  label: 'FUEL LEVEL',      sub: 'Main tank',          bar: true,  warn: 25,  crit: 10  },
+    battery:     { value: 91,  unit: '%',  label: 'MAIN BATTERY',    sub: 'Aux power bank',     bar: true,  warn: 30,  crit: 15  },
+    engine_temp: { value: 87,  unit: 'degC', label: 'ENGINE TEMP',     sub: 'Normal: 70-95degC',    bar: false, warn: 100, crit: 110, invert: true },
+    coolant:     { value: 94,  unit: '%',  label: 'COOLANT LEVEL',   sub: 'Radiator reservoir', bar: true,  warn: 40,  crit: 20  },
+    oil:         { value: 72,  unit: '%',  label: 'OIL PRESSURE',    sub: 'PSI normalized',     bar: true,  warn: 30,  crit: 15  },
+    speed:       { value: 0,   unit: 'km/h',label: 'VEHICLE SPEED',  sub: 'GPS ground speed',   bar: false, warn: 999, crit: 999 },
+    // Comms & electronics
+    gps:         { value: 97,  unit: '%',  label: 'GPS SIGNAL',      sub: '9 satellites locked',bar: true,  warn: 50,  crit: 20  },
+    comms:       { value: 84,  unit: '%',  label: 'COMMS UPLINK',    sub: 'Encrypted channel',  bar: true,  warn: 40,  crit: 20  },
+    power_inv:   { value: 99,  unit: '%',  label: 'POWER INVERTER',  sub: '12V -> 240V onboard', bar: true,  warn: 60,  crit: 30  },
+    data_link:   { value: 61,  unit: '%',  label: 'DATA LINK',       sub: 'LTE / Satellite',    bar: true,  warn: 30,  crit: 15  },
+};
+
+var equipData = {
+    defib:   { label: 'DEFIBRILLATOR',    icon: '\u2764\uFE0F',  status: 'ok',      note: 'Charged * Ready'          },
+    o2:      { label: 'OXYGEN SUPPLY',    icon: '\uD83E\uDEC1',  status: 'warn',    note: '38% remaining'            },
+    trauma:  { label: 'TRAUMA KIT',       icon: '\uD83E\uDE79',  status: 'ok',      note: 'Fully stocked'            },
+    stretcher:{ label: 'STRETCHER',       icon: '\uD83D\uDECF\uFE0F',  status: 'ok',      note: 'Deployed on rails'        },
+    rope:    { label: 'RESCUE ROPE',      icon: '\uD83E\uDEA2',  status: 'ok',      note: '30m * Rigged'             },
+    harness: { label: 'HARNESS SET',      icon: '\uD83E\uDDBA',  status: 'ok',      note: '4x units * Checked'       },
+    saw:     { label: 'HYDRAULIC SAW',    icon: '\uD83D\uDD27',  status: 'ok',      note: 'Fueled * Ready'           },
+    fire_ext:{ label: 'FIRE SUPPRESSOR',  icon: '\uD83E\uDDEF',  status: 'ok',      note: '2x full cylinders'        },
+    nvg:     { label: 'NIGHT VISION',     icon: '\uD83D\uDC41\uFE0F',  status: 'warn',    note: 'Battery low - 22%'        },
+    comms_hh:{ label: 'HANDHELD RADIOS',  icon: '\uD83D\uDCFB',  status: 'ok',      note: '6x units * Encrypted'     },
+    flare:   { label: 'FLARE KIT',        icon: '\uD83D\uDD34',  status: 'ok',      note: '8x flares * Dry stored'   },
+    water_pump:{ label: 'WATER PUMP',     icon: '\uD83D\uDCA7', status: 'ok',      note: 'Primed * 50L/min'         },
+};
+
+var vehicleData = [
+    { name: 'RAVEN',   type: 'Helicopter',  icon: '\uD83D\uDE81', fuel: 82, battery: 95, status: 'ok',      statusText: 'STANDBY' },
+    { name: 'GHOST',   type: 'Hypercar',    icon: '\uD83D\uDE97', fuel: 91, battery: 99, status: 'ok',      statusText: 'STANDBY' },
+    { name: 'VIPER',   type: 'Stunt Bike',  icon: '\uD83C\uDFCD\uFE0F', fuel: 55, battery: 88, status: 'warn',    statusText: 'FUEL LOW' },
+    { name: 'TITAN',   type: 'ATV',         icon: '\uD83D\uDE99', fuel: 70, battery: 94, status: 'ok',      statusText: 'STANDBY' },
+    { name: 'EYE ONE', type: 'Drone',       icon: '\uD83D\uDEF8', fuel: 0,  battery: 100,status: 'ok',      statusText: 'STANDBY' },
+    { name: 'EYE TWO', type: 'Drone',       icon: '\uD83D\uDEF8', fuel: 0,  battery: 47, status: 'warn',    statusText: 'DEPLOYED * LOW BAT' },
+];
+
+function getSysClass(key, value) {
+    var d = sysData[key];
+    if (d.invert) {
+        if (value >= d.crit) return 'critical';
+        if (value >= d.warn) return 'warn';
+        return 'ok';
+    }
+    if (value <= d.crit) return 'critical';
+    if (value <= d.warn) return 'warn';
+    return 'ok';
+}
+
+function getBarClass(key, value) { return getSysClass(key, value); }
+
+function getBarPct(key, value) {
+    var d = sysData[key];
+    if (d.invert) {
+        // scale 0-120degC for engine temp
+        return Math.min(100, Math.round((value / 120) * 100));
+    }
+    return Math.min(100, value);
+}
+
+function nudge(val, min, max, step) {
+    var delta = (Math.random() - 0.5) * step;
+    return Math.min(max, Math.max(min, Math.round((val + delta) * 10) / 10));
+}
+
+function tickSysData() {
+    sysData.fuel.value        = nudge(sysData.fuel.value,        10, 100, 0.3);
+    sysData.battery.value     = nudge(sysData.battery.value,     10, 100, 0.5);
+    sysData.engine_temp.value = nudge(sysData.engine_temp.value, 70, 115, 1.5);
+    sysData.coolant.value     = nudge(sysData.coolant.value,     10, 100, 0.2);
+    sysData.oil.value         = nudge(sysData.oil.value,         10, 100, 0.5);
+    sysData.gps.value         = nudge(sysData.gps.value,         20, 100, 1.0);
+    sysData.comms.value       = nudge(sysData.comms.value,       20, 100, 2.0);
+    sysData.power_inv.value   = nudge(sysData.power_inv.value,   50, 100, 0.3);
+    sysData.data_link.value   = nudge(sysData.data_link.value,   10, 100, 3.0);
+    for (var i = 0; i < vehicleData.length; i++) {
+        var v = vehicleData[i];
+        v.battery = nudge(v.battery, 5, 100, 0.8);
+        if (v.fuel > 0) v.fuel = nudge(v.fuel, 5, 100, 0.4);
+        v.status = (v.battery < 30 || (v.fuel > 0 && v.fuel < 20)) ? 'critical'
+                 : (v.battery < 50 || (v.fuel > 0 && v.fuel < 40)) ? 'warn' : 'ok';
+    }
+    renderSysScreen();
+}
+
+function renderSysCard(key) {
+    var d = sysData[key];
+    var val = d.value;
+    var cls = getSysClass(key, val);
+    var display = Math.round(val * 10) / 10;
+    var html = "<div class='sys-card " + cls + "' id='sc_" + key + "'>";
+    html += "<p class='sys-card-name'>" + d.label + "</p>";
+    html += "<p class='sys-card-value'>" + display + "<span style='font-size:11px; color:#555555; margin-left:2px;'>" + d.unit + "</span></p>";
+    html += "<p class='sys-card-sub'>" + d.sub + "</p>";
+    if (d.bar) {
+        var pct = getBarPct(key, val);
+        html += "<div class='sys-bar-track'><div class='sys-bar-fill " + cls + "' style='width:" + pct + "%'></div></div>";
+    }
+    html += "<span class='sys-status-badge " + cls + "'>" + cls.toUpperCase() + "</span>";
+    html += "</div>";
+    return html;
+}
+
+function renderEquipRow(key) {
+    var e = equipData[key];
+    var colors = { ok: '#00ff00', warn: '#ffaa00', critical: '#ff0000', offline: '#444444' };
+    var col = colors[e.status] || '#555555';
+    return "<div style='background:#0d0d0d; border:1px solid #1e1e1e; border-left:3px solid " + col + "; border-radius:6px; padding:8px 10px; display:flex; align-items:center; gap:10px; margin-bottom:5px;'>" +
+        "<span style='font-size:18px;'>" + e.icon + "</span>" +
+        "<div style='flex:1;'>" +
+            "<p style='color:#ffffff; font-size:12px; font-weight:bold; margin:0;'>" + e.label + "</p>" +
+            "<p style='color:#666666; font-size:10px; margin:2px 0 0 0;'>" + e.note + "</p>" +
+        "</div>" +
+        "<span class='sys-status-badge " + e.status + "'>" + e.status.toUpperCase() + "</span>" +
+    "</div>";
+}
+
+function renderVehicleCard(v) {
+    var colors = { ok: '#00ff00', warn: '#ffaa00', critical: '#ff0000' };
+    var col = colors[v.status] || '#555555';
+    var fuelBar = v.fuel > 0
+        ? "<div style='margin-top:4px;'><p style='color:#444444; font-size:9px; margin:0 0 2px 0; letter-spacing:1px;'>FUEL</p><div class='sys-bar-track'><div class='sys-bar-fill " + (v.fuel < 20 ? 'critical' : v.fuel < 40 ? 'warn' : 'ok') + "' style='width:" + v.fuel + "%'></div></div></div>"
+        : "<p style='color:#444444; font-size:9px; margin:4px 0 0 0;'>ELECTRIC</p>";
+    var batBar = "<div style='margin-top:4px;'><p style='color:#444444; font-size:9px; margin:0 0 2px 0; letter-spacing:1px;'>BATTERY</p><div class='sys-bar-track'><div class='sys-bar-fill " + (v.battery < 20 ? 'critical' : v.battery < 40 ? 'warn' : 'ok') + "' style='width:" + v.battery + "%'></div></div></div>";
+    return "<div class='sys-vehicle-card' style='border-left:3px solid " + col + ";'>" +
+        "<div class='sys-vehicle-icon'>" + v.icon + "</div>" +
+        "<div style='flex:1;'>" +
+            "<p class='sys-vehicle-name'>" + v.name + "</p>" +
+            "<p class='sys-vehicle-type'>" + v.type + "</p>" +
+            fuelBar + batBar +
+        "</div>" +
+        "<div style='text-align:right; flex-shrink:0;'>" +
+            "<span class='sys-status-badge " + v.status + "'>" + v.statusText + "</span>" +
+        "</div>" +
+    "</div>";
+}
+
+function renderSysScreen() {
+    var now = new Date();
+    var ts = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+    // Collect alerts
+    var alerts = [];
+    for (var k in sysData) {
+        var cls = getSysClass(k, sysData[k].value);
+        if (cls === 'critical') alerts.push({ text: sysData[k].label + ' CRITICAL - ' + Math.round(sysData[k].value) + sysData[k].unit, level: 'critical' });
+        else if (cls === 'warn')     alerts.push({ text: sysData[k].label + ' WARNING - ' + Math.round(sysData[k].value) + sysData[k].unit, level: 'warn' });
+    }
+    for (var i = 0; i < vehicleData.length; i++) {
+        if (vehicleData[i].status === 'critical') alerts.push({ text: vehicleData[i].name + ' CRITICAL', level: 'critical' });
+        else if (vehicleData[i].status === 'warn') alerts.push({ text: vehicleData[i].name + ' - ' + vehicleData[i].statusText, level: 'warn' });
+    }
+    for (var ek in equipData) {
+        if (equipData[ek].status === 'warn') alerts.push({ text: equipData[ek].label + ' - ' + equipData[ek].note, level: 'warn' });
+    }
+
+    var alertsHtml = '';
+    alerts.forEach(function(a) {
+        alertsHtml += "<div class='sys-alert-bar " + (a.level === 'warn' ? 'warn' : '') + "'>" +
+            "<div class='sys-alert-dot " + (a.level === 'warn' ? 'warn' : '') + "'></div>" +
+            "<span class='sys-alert-text " + (a.level === 'warn' ? 'warn' : '') + "'>\u26A0 " + a.text + "</span>" +
+        "</div>";
+    });
+    if (!alertsHtml) {
+        alertsHtml = "<div style='background:#001a00; border:1px solid #004400; border-radius:6px; padding:8px 12px; margin-bottom:10px; display:flex; align-items:center; gap:8px;'>" +
+            "<div style='width:6px;height:6px;border-radius:50%;background:#00ff00;flex-shrink:0;'></div>" +
+            "<span style='color:#00ff00; font-size:11px; font-weight:bold;'>ALL SYSTEMS NOMINAL</span></div>";
+    }
+
+    var vehiclesHtml = vehicleData.map(renderVehicleCard).join('');
+    var equipHtml = Object.keys(equipData).map(renderEquipRow).join('');
+
+    var html = "<div class='sys-header'>" +
+        "<span class='sys-title'>SYSTEMS MONITOR</span>" +
+        "<span class='sys-timestamp' id='sys_ts'>" + ts + "</span>" +
+    "</div>";
+
+    html += alertsHtml;
+
+    // Main vehicle systems grid
+    html += "<p class='sys-section-label'>MAIN VEHICLE - POWERTRAIN & SYSTEMS</p>";
+    html += "<div class='sys-grid'>";
+    ['fuel','battery','engine_temp','coolant','oil','speed','gps','comms','power_inv','data_link'].forEach(function(k) {
+        html += renderSysCard(k);
+    });
+    html += "</div>";
+
+    // Onboard vehicles
+    html += "<p class='sys-section-label'>ONBOARD VEHICLES & ASSETS</p>";
+    html += vehiclesHtml;
+
+    // Equipment
+    html += "<p class='sys-section-label'>MEDICAL & RESCUE EQUIPMENT</p>";
+    html += equipHtml;
+
+    document.getElementById("mainScreen").innerHTML = html;
+}
+
+
+// -- INCIDENT LOG --
+var ilogFilter = 'all';
+
+var incidentEntries = [
+    { time: '14:05:00', cat: 'system',   who: 'SALVATION AI', text: 'Incident opened. Flash flood detected - Weija / West Hills Mall. Mission clock started.' },
+    { time: '14:07:22', cat: 'tactical', who: 'COMMANDER',    text: 'Crew briefed. GHOST and VIPER dispatched to perimeter. RAVEN on standby.' },
+    { time: '14:09:45', cat: 'comms',    who: 'COMMS',        text: 'Contact established with Dansoman Fire Station. Pump unit requested.' },
+    { time: '14:11:10', cat: 'tactical', who: 'ALPHA',        text: 'Entry made via Level 1 main entrance. Flood water at knee level. Civilians visible on Level 2.' },
+    { time: '14:13:33', cat: 'medical',  who: 'MEDIC ONE',    text: 'First casualty located. Male, approx 40s. Blunt trauma to head. Conscious. Stabilised on scene.' },
+    { time: '14:15:50', cat: 'tactical', who: 'BRAVO',        text: 'Basement door breached. Water level rising rapidly. Structural integrity uncertain.' },
+    { time: '14:18:04', cat: 'comms',    who: 'RAVEN',        text: 'Aerial reconnaissance complete. Rooftop LZ confirmed clear. 800ft holding pattern.' },
+    { time: '14:20:17', cat: 'medical',  who: 'MEDIC TWO',    text: 'Second casualty. Female, 30s. GSW abdomen. Critical. Immediate extraction required.' },
+    { time: '14:23:00', cat: 'tactical', who: 'ALPHA',        text: 'Civilian group of 23 secured on Level 2 stairwell B. Awaiting extraction order.' },
+    { time: '14:27:05', cat: 'comms',    who: 'COMMANDER',    text: 'SALVATION to Dansoman. Pump unit confirmed en route. ETA 7 minutes.' },
+    { time: '14:30:58', cat: 'medical',  who: 'MEDIC ONE',    text: 'Critical patient deteriorating. Requesting rooftop LZ activation for RAVEN extraction.' },
+    { time: '14:32:11', cat: 'tactical', who: 'BRAVO',        text: 'Water at basement door now thigh-high. Extraction line requested.' },
+];
+
+function ilogCatLabel(cat) {
+    var m = { medical: 'MEDICAL', tactical: 'TACTICAL', comms: 'COMMS', system: 'SYSTEM', manual: 'MANUAL' };
+    return m[cat] || cat.toUpperCase();
+}
+
+function renderIlogEntry(e) {
+    return "<div class='ilog-entry'>" +
+        "<div class='ilog-dot " + e.cat + "'></div>" +
+        "<div class='ilog-card'>" +
+            "<div class='ilog-card-header'>" +
+                "<span class='ilog-card-time'>" + e.time + "</span>" +
+                "<span class='ilog-card-cat " + e.cat + "'>" + ilogCatLabel(e.cat) + "</span>" +
+            "</div>" +
+            "<p class='ilog-card-who'>" + e.who + "</p>" +
+            "<p class='ilog-card-text'>" + e.text + "</p>" +
+        "</div>" +
+    "</div>";
+}
+
+function setIlogFilter(cat) {
+    ilogFilter = cat;
+    refreshIlog();
+    var btns = document.querySelectorAll('.ilog-filter-btn');
+    btns.forEach(function(b) {
+        b.classList.remove('active');
+        if (b.getAttribute('data-cat') === cat) b.classList.add('active');
+    });
+}
+
+function refreshIlog() {
+    var el = document.getElementById('ilog_timeline');
+    if (!el) return;
+    var filtered = ilogFilter === 'all'
+        ? incidentEntries
+        : incidentEntries.filter(function(e) { return e.cat === ilogFilter; });
+    // Show newest first
+    var sorted = filtered.slice().reverse();
+    el.innerHTML = sorted.length
+        ? sorted.map(renderIlogEntry).join('')
+        : "<p style='color:#444444; font-size:12px; text-align:center; padding:20px 0;'>No entries in this category.</p>";
+}
+
+function addIlogEntry() {
+    var catEl  = document.getElementById('ilog_cat');
+    var whoEl  = document.getElementById('ilog_who');
+    var textEl = document.getElementById('ilog_text');
+    if (!catEl || !textEl) return;
+    var txt = textEl.value.trim();
+    if (!txt) return;
+    var now = new Date();
+    var ts  = now.toTimeString().substring(0, 8);
+    incidentEntries.push({
+        time: ts,
+        cat:  catEl.value,
+        who:  whoEl.value || 'CREW',
+        text: txt
+    });
+    textEl.value = '';
+    refreshIlog();
+}
+
+function renderIlogScreen() {
+    var cats = [
+        { key: 'all',      label: 'ALL' },
+        { key: 'medical',  label: 'MEDICAL' },
+        { key: 'tactical', label: 'TACTICAL' },
+        { key: 'comms',    label: 'COMMS' },
+        { key: 'system',   label: 'SYSTEM' },
+    ];
+
+    var html = "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'>" +
+        "<span style='color:#0077ff; font-size:18px; font-weight:bold;'>INCIDENT LOG</span>" +
+        "<span style='background:#1a0000; border:1px solid #440000; color:#ff4444; font-size:10px; font-weight:bold; padding:4px 10px; border-radius:4px; letter-spacing:1px;'>\u25CF ACTIVE INCIDENT</span>" +
+    "</div>";
+
+    // Incident header
+    html += "<div style='background:#0d0d0d; border:1px solid #1e1e1e; border-left:3px solid #ff4444; border-radius:6px; padding:10px 12px; margin-bottom:14px;'>" +
+        "<p style='color:#ff4444; font-size:10px; font-weight:bold; margin:0 0 3px 0; letter-spacing:1px;'>ACTIVE INCIDENT</p>" +
+        "<p style='color:#ffffff; font-size:14px; font-weight:bold; margin:0 0 3px 0;'>Flash Flood - Weija / West Hills Mall</p>" +
+        "<p style='color:#555555; font-size:10px; font-family:monospace; margin:0;'>OPENED: 14:05:00 &nbsp;|&nbsp; ENTRIES: " + incidentEntries.length + " &nbsp;|&nbsp; DURATION: ONGOING</p>" +
+    "</div>";
+
+    // Filter buttons
+    html += "<p class='log-section-label'>FILTER BY CATEGORY</p>";
+    html += "<div class='ilog-filters'>" +
+        cats.map(function(c) {
+            return "<button class='ilog-filter-btn " + c.key + (ilogFilter === c.key ? ' active' : '') + "' data-cat='" + c.key + "' onclick='setIlogFilter(\"" + c.key + "\")'>" + c.label + "</button>";
+        }).join('') +
+    "</div>";
+
+    // Timeline
+    html += "<p class='log-section-label'>TIMELINE</p>";
+    html += "<div class='ilog-timeline' id='ilog_timeline'></div>";
+
+    // Add entry
+    html += "<p class='log-section-label'>ADD ENTRY</p>";
+    html += "<div class='ilog-add-box'>" +
+        "<div class='ilog-add-row'>" +
+            "<select class='ilog-select' id='ilog_cat'>" +
+                "<option value='tactical'>TACTICAL</option>" +
+                "<option value='medical'>MEDICAL</option>" +
+                "<option value='comms'>COMMS</option>" +
+                "<option value='system'>SYSTEM</option>" +
+                "<option value='manual'>MANUAL NOTE</option>" +
+            "</select>" +
+            "<select class='ilog-select' id='ilog_who'>" +
+                "<option>COMMANDER</option><option>ALPHA</option><option>BRAVO</option>" +
+                "<option>MEDIC ONE</option><option>MEDIC TWO</option><option>DRIVER</option>" +
+                "<option>PILOT</option><option>SALVATION AI</option>" +
+            "</select>" +
+        "</div>" +
+        "<textarea class='ilog-textarea' id='ilog_text' rows='2' placeholder='Enter log entry...'></textarea>" +
+        "<button class='btn-log-entry' onclick='addIlogEntry()'>+ LOG ENTRY</button>" +
+    "</div>";
+
+    document.getElementById('mainScreen').innerHTML = html;
+    refreshIlog();
+}
+
+// -- COMMUNICATIONS --
+var commsInterval = null;
+
+var channels = [
+    { id: 'ch1', name: 'COMMAND NET',    freq: '154.650 MHz', enc: true,  status: 'active',  signal: 92, party: 'COMMANDER' },
+    { id: 'ch2', name: 'MEDICAL OPS',    freq: '155.340 MHz', enc: true,  status: 'idle',    signal: 87, party: '' },
+    { id: 'ch3', name: 'FIELD ALPHA',    freq: '462.550 MHz', enc: false, status: 'squelch', signal: 61, party: 'ALPHA' },
+    { id: 'ch4', name: 'FIELD BRAVO',    freq: '462.600 MHz', enc: false, status: 'busy',    signal: 74, party: 'BRAVO' },
+    { id: 'ch5', name: 'RAVEN AIR',      freq: '123.450 MHz', enc: true,  status: 'idle',    signal: 95, party: '' },
+    { id: 'ch6', name: 'EXT - FIRE SVC', freq: '153.770 MHz', enc: false, status: 'idle',    signal: 53, party: '' },
+    { id: 'ch7', name: 'EXT - POLICE',   freq: '155.010 MHz', enc: false, status: 'idle',    signal: 48, party: '' },
+    { id: 'ch8', name: 'EXT - MEDICAL',  freq: '155.175 MHz', enc: false, status: 'idle',    signal: 41, party: '' },
+];
+
+var commsLog = [
+    { time: '14:32:11', caller: 'BRAVO',     text: 'Water level at basement door now thigh-high. Requesting extraction line.', ch: 'CH4', type: 'incoming' },
+    { time: '14:31:44', caller: 'COMMANDER', text: 'All units confirm status. EYE TWO feed is cutting out.', ch: 'CH1', type: 'outgoing' },
+    { time: '14:30:58', caller: 'MEDIC ONE', text: 'We have one critical. GSW to abdomen. Need landing zone on rooftop confirmed.', ch: 'CH2', type: 'priority' },
+    { time: '14:29:33', caller: 'ALPHA',     text: 'Civilians secured on Level 2. Count is 23. Moving toward stairwell B.', ch: 'CH3', type: 'incoming' },
+    { time: '14:28:17', caller: 'RAVEN',     text: 'Holding at 800ft. Rooftop LZ looks clear. Ready on your call.', ch: 'CH5', type: 'incoming' },
+    { time: '14:27:05', caller: 'FIRE SVC',  text: 'Dansoman unit en route. ETA 7 minutes to Weija junction.', ch: 'CH6', type: 'incoming' },
+    { time: '14:25:50', caller: 'COMMANDER', text: 'SALVATION to Dansoman. We have active flood, civilian extraction in progress. Request pump unit.', ch: 'CH6', type: 'outgoing' },
+];
+
+var selectedChannel = 'CH1';
+
+function getSigClass(sig) {
+    if (sig >= 70) return 'strong';
+    if (sig >= 45) return 'medium';
+    return 'weak';
+}
+
+function getChStatusColor(status) {
+    if (status === 'active')  return '#00ff00';
+    if (status === 'busy')    return '#ff4444';
+    if (status === 'squelch') return '#ffaa00';
+    return '#444444';
+}
+
+function getChStatusLabel(status) {
+    if (status === 'active')  return 'ACTIVE';
+    if (status === 'busy')    return 'BUSY';
+    if (status === 'squelch') return 'SQUELCH';
+    return 'IDLE';
+}
+
+function renderChannel(ch, idx) {
+    var col    = getChStatusColor(ch.status);
+    var label  = getChStatusLabel(ch.status);
+    var sigCls = getSigClass(ch.signal);
+    var chNum  = 'CH' + (idx + 1);
+    return "<div class='ch-card " + ch.status + "' onclick='selectChannel(\"" + chNum + "\")'>" +
+        "<p class='ch-name'>" + ch.name + "</p>" +
+        "<p class='ch-freq'>" + ch.freq + (ch.enc ? " \uD83D\uDD12" : "") + "</p>" +
+        "<div class='ch-sig-track'><div class='ch-sig-fill " + sigCls + "' style='width:" + Math.round(ch.signal) + "%'></div></div>" +
+        "<div class='ch-meta'>" +
+            "<span><span class='ch-status-dot' style='background:" + col + ";'></span>" +
+            "<span class='ch-status-txt' style='color:" + col + ";'>" + label + (ch.party ? " \u2022 " + ch.party : "") + "</span></span>" +
+            "<span style='color:#333333; font-size:9px; font-family:monospace;'>" + Math.round(ch.signal) + "% SIG</span>" +
+        "</div>" +
+    "</div>";
+}
+
+function renderLogEntry(e) {
+    return "<div class='log-entry " + e.type + "'>" +
+        "<span class='log-time'>" + e.time + "</span>" +
+        "<span class='log-caller'>" + e.caller + "</span>" +
+        "<span class='log-text'>" + e.text + "</span>" +
+        "<span class='log-ch'>" + e.ch + "</span>" +
+    "</div>";
+}
+
+function selectChannel(ch) {
+    selectedChannel = ch;
+    var sel = document.getElementById('bcast_ch');
+    if (sel) sel.value = ch;
+}
+
+function transmit() {
+    var msgEl = document.getElementById('bcast_msg');
+    var msg = msgEl ? msgEl.value.trim() : '';
+    if (!msg) return;
+    var now = new Date();
+    var ts  = now.toTimeString().substring(0, 8);
+    commsLog.unshift({ time: ts, caller: 'COMMANDER', text: msg, ch: selectedChannel, type: 'outgoing' });
+    if (commsLog.length > 30) commsLog.pop();
+    msgEl.value = '';
+    refreshCommsLog();
+    var btn = document.getElementById('tx_btn');
+    if (btn) {
+        btn.classList.add('transmitting'); btn.textContent = '\uD83D\uDCE1 TRANSMITTING...';
+        setTimeout(function(){ btn.classList.remove('transmitting'); btn.textContent = '\uD83D\uDCE1 TRANSMIT'; }, 1200);
+    }
+}
+
+function refreshCommsLog() {
+    var logEl = document.getElementById('comms_log');
+    if (logEl) logEl.innerHTML = commsLog.map(renderLogEntry).join('');
+}
+
+function tickComms() {
+    channels.forEach(function(ch) {
+        ch.signal = Math.min(100, Math.max(15, ch.signal + (Math.random() - 0.5) * 4));
+    });
+    if (Math.random() < 0.12) {
+        var idx  = Math.floor(Math.random() * channels.length);
+        var opts = ['idle','idle','idle','squelch','busy'];
+        if (channels[idx].status !== 'active') {
+            channels[idx].status = opts[Math.floor(Math.random() * opts.length)];
+        }
+    }
+    var chGrid = document.getElementById('ch_grid');
+    if (chGrid) chGrid.innerHTML = channels.map(renderChannel).join('');
+}
+
+function pttDown() {
+    var b = document.getElementById('ptt_btn');
+    if (b) { b.classList.add('held'); b.textContent = '\uD83C\uDFA4 TRANSMITTING...'; }
+}
+function pttUp() {
+    var b = document.getElementById('ptt_btn');
+    if (b) { b.classList.remove('held'); b.textContent = '\uD83C\uDFA4 HOLD TO TALK'; }
+}
+
+function renderCommsScreen() {
+    var html = "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'>" +
+        "<span style='color:#0077ff; font-size:18px; font-weight:bold;'>COMMUNICATIONS</span>" +
+        "<span style='color:#555555; font-size:11px; font-family:monospace;' id='comms_clock'></span>" +
+    "</div>";
+
+    html += "<p class='comms-section-label'>CHANNEL MONITOR</p>";
+    html += "<div class='ch-grid' id='ch_grid'>" + channels.map(renderChannel).join('') + "</div>";
+
+    html += "<p class='comms-section-label'>TRANSMISSION LOG</p>";
+    html += "<div class='comms-log' id='comms_log'>" + commsLog.map(renderLogEntry).join('') + "</div>";
+
+    html += "<p class='comms-section-label'>BROADCAST</p>";
+    html += "<div class='broadcast-box'>" +
+        "<div class='broadcast-row'>" +
+            "<select class='broadcast-select' id='bcast_ch' onchange='selectChannel(this.value)'>" +
+                channels.map(function(ch, i) {
+                    var n = 'CH' + (i + 1);
+                    return "<option value='" + n + "'" + (n === selectedChannel ? ' selected' : '') + ">" + n + " \u2014 " + ch.name + "</option>";
+                }).join('') +
+            "</select>" +
+            "<select class='broadcast-select'>" +
+                "<option>ALL UNITS</option><option>COMMANDER</option><option>ALPHA</option>" +
+                "<option>BRAVO</option><option>MEDIC ONE</option><option>MEDIC TWO</option>" +
+                "<option>RAVEN</option><option>EXT \u2014 FIRE SVC</option><option>EXT \u2014 POLICE</option>" +
+            "</select>" +
+        "</div>" +
+        "<textarea class='broadcast-input' id='bcast_msg' rows='2' placeholder='Type message to transmit...'></textarea>" +
+        "<button class='btn-transmit' id='tx_btn' onclick='transmit()'>\uD83D\uDCE1 TRANSMIT</button>" +
+        "<div class='ptt-btn' id='ptt_btn' onmousedown='pttDown()' onmouseup='pttUp()' ontouchstart='pttDown()' ontouchend='pttUp()'>\uD83C\uDFA4 HOLD TO TALK</div>" +
+    "</div>";
+
+    document.getElementById('mainScreen').innerHTML = html;
+}
+
+// -- SHARED UTILS --
+function toggleFeed(id) {
+    var card = document.getElementById(id);
+    var isMaximized = card.classList.contains('maximized');
+    var allCards = document.querySelectorAll('.feed-card');
+    allCards.forEach(function(c) { c.classList.remove('maximized'); });
+    if (!isMaximized) { card.classList.add('maximized'); }
+}
+
+function resourceCard(icon, name, type, distance, status, statusColor, note) {
+    return "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid " + statusColor + ";'>" +
+        "<p style='color:#ffffff; font-weight:bold; margin:0; font-size:12px;'>" + icon + " " + name + "</p>" +
+        "<p style='color:#aaaaaa; font-size:10px; margin:2px 0;'>" + type + " * " + distance + "</p>" +
+        "<p style='color:" + statusColor + "; font-size:10px; font-weight:bold; margin:2px 0;'>\u25CF " + status + "</p>" +
+        "<p style='color:#cccccc; font-size:11px; margin:3px 0 0 0;'>" + note + "</p>" +
+    "</div>";
+}
+
+
+// -- SALVATION AI - LIVE BRIEFING ENGINE --
+var SUPABASE_URL = 'https://uusuknamameimexrkfxpr.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1c3Vrbm1hbWVpbWV4cmtmeHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDU3ODEsImV4cCI6MjA5NTkyMTc4MX0.SI5Sm7qSiOnrkyLYZ1seMDhYsEckMbmoZiBA98kLfgY';
+
+var activeIncident   = null;
+var briefingInterval = null;
+var lastSeenId       = null;
+var alarmActive      = false;
+
+// Alarm sound using Web Audio API
+function triggerAlarm() {
+    if (alarmActive) return;
+    alarmActive = true;
+    try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var beep = function(freq, start, dur) {
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = freq;
+            o.type = 'square';
+            g.gain.setValueAtTime(0.3, ctx.currentTime + start);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+            o.start(ctx.currentTime + start);
+            o.stop(ctx.currentTime + start + dur + 0.05);
+        };
+        beep(880, 0,    0.18);
+        beep(660, 0.22, 0.18);
+        beep(880, 0.44, 0.18);
+        beep(660, 0.66, 0.18);
+        beep(880, 0.88, 0.35);
+    } catch(e) {}
+    setTimeout(function(){ alarmActive = false; }, 3000);
+}
+
+function severityColor(sev) {
+    if (sev === 'critical') return '#ff0000';
+    if (sev === 'high')     return '#ffaa00';
+    return '#0077ff';
+}
+
+function typeIcon(type) {
+    var icons = { fire:'\uD83D\uDD25', flood:'\uD83C\uDF0A', accident:'\uD83D\uDE97', medical:'\uD83C\uDFE5', crime:'\uD83D\uDEA8', structural:'\uD83C\uDFD7\uFE0F', hazmat:'\u2622\uFE0F', other:'\u26A0\uFE0F' };
+    return icons[type] || '\u26A0\uFE0F';
+}
+
+// Poll Supabase for new unacknowledged incidents
+function pollIncidents() {
+    fetch(SUPABASE_URL + '/rest/v1/incidents?acknowledged=eq.false&order=timestamp.desc&limit=1', {
+        headers: {
+            'apikey':        SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+        }
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        if (!data || data.length === 0) return;
+        var incident = data[0];
+        if (incident.id === lastSeenId) return;
+        lastSeenId    = incident.id;
+        activeIncident = incident;
+        triggerAlarm();
+        showAlarmBanner(incident);
+        if (document.getElementById('mainScreen').dataset.screen === 'Briefing') {
+            renderBriefingScreen();
+        }
+    })
+    .catch(function(e){ console.warn('Poll error:', e); });
+}
+
+function showAlarmBanner(incident) {
+    var existing = document.getElementById('alarm_banner');
+    if (existing) existing.remove();
+    var col = severityColor(incident.severity);
+    var banner = document.createElement('div');
+    banner.id = 'alarm_banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;width:100%;z-index:9999;background:#1a0000;border-bottom:2px solid ' + col + ';padding:10px 16px;display:flex;align-items:center;gap:10px;animation:alarm-flash 0.5s infinite alternate;';
+    banner.innerHTML = '<span style="font-size:20px;animation:pulse-dot 0.5s infinite;">' + typeIcon(incident.type) + '</span>' +
+        '<div style="flex:1;">' +
+            '<p style="color:' + col + ';font-weight:bold;font-size:13px;margin:0;letter-spacing:1px;">\u26A0 NEW INCIDENT - ' + incident.severity.toUpperCase() + '</p>' +
+            '<p style="color:#cccccc;font-size:12px;margin:2px 0 0 0;">' + incident.type.toUpperCase() + ' \u00B7 ' + incident.location + '</p>' +
+        '</div>' +
+        '<button onclick="dismissAlarm()" style="background:#330000;border:1px solid #660000;color:#ff4444;font-size:11px;font-weight:bold;padding:6px 12px;border-radius:4px;cursor:pointer;letter-spacing:1px;">VIEW</button>';
+    banner.querySelector('button').addEventListener('click', function(){ showScreen('Briefing'); });
+    document.body.insertBefore(banner, document.body.firstChild);
+    setTimeout(dismissAlarm, 15000);
+}
+
+function dismissAlarm() {
+    var b = document.getElementById('alarm_banner');
+    if (b) b.remove();
+}
+
+function acknowledgeIncident() {
+    if (!activeIncident) return;
+    fetch(SUPABASE_URL + '/rest/v1/incidents?id=eq.' + activeIncident.id, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type':  'application/json',
+            'apikey':        SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Prefer':        'return=minimal'
+        },
+        body: JSON.stringify({ acknowledged: true })
+    });
+    dismissAlarm();
+}
+
+// Generate AI briefing from incident data
+function generateAIBriefing(incident) {
+    var briefEl = document.getElementById('briefing_content');
+    if (!briefEl) return;
+    briefEl.innerHTML = '<p style="color:#555555;font-size:13px;text-align:center;padding:20px 0;">\u23F3 SALVATION AI is generating briefing...</p>';
+
+    var prompt = [
+        'You are SALVATION AI, the autonomous emergency intelligence system for a private rapid response vehicle in Ghana.',
+        'A WatchGhana field reporter has submitted the following incident report:',
+        '',
+        'TYPE: ' + incident.type.toUpperCase(),
+        'SEVERITY: ' + incident.severity.toUpperCase(),
+        'LOCATION: ' + incident.location,
+        'DESCRIPTION: ' + incident.description,
+        'VICTIMS: ' + incident.victims,
+        'SERVICES ON SCENE: ' + (incident.services_on_scene || 'none'),
+        'ACCESS ROUTE: ' + (incident.access_route || 'unknown'),
+        'REPORTED BY: ' + incident.reporter + ' (' + incident.reporter_id + ')',
+        'TIME: ' + incident.timestamp,
+        '',
+        'Generate a concise crew briefing with exactly these four sections. Use plain text, no markdown, no bullet points:',
+        '',
+        'SITUATION: [2-3 sentences describing what is happening]',
+        'THREATS: [2-3 sentences on immediate dangers to crew and victims]',
+        'RECOMMENDED ACTION: [2-3 sentences on what the crew should do]',
+        'INACTION RISK: [1-2 sentences on consequences of delayed response]'
+    ].join('\n');
+
+    fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{ role: 'user', content: prompt }]
+        })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        var text = data.content && data.content[0] ? data.content[0].text : '';
+        if (!text) { briefEl.innerHTML = '<p style="color:#ff4444;">Failed to generate briefing.</p>'; return; }
+
+        // Parse sections
+        function extractSection(label, next) {
+            var re = new RegExp(label + ':\s*([\s\S]*?)(?=' + next + ':|$)', 'i');
+            var m  = text.match(re);
+            return m ? m[1].trim() : '';
+        }
+        var situation = extractSection('SITUATION',  'THREATS');
+        var threats   = extractSection('THREATS',    'RECOMMENDED ACTION');
+        var action    = extractSection('RECOMMENDED ACTION', 'INACTION RISK');
+        var inaction  = extractSection('INACTION RISK', '$$END$$');
+
+        briefEl.innerHTML =
+            "<p class='section-title-blue'>SITUATION</p><p class='section-text'>" + situation + "</p>" +
+            "<p class='section-title-amber'>THREATS</p><p class='section-text'>" + threats + "</p>" +
+            "<p class='section-title-green'>RECOMMENDED ACTION</p><p class='section-text'>" + action + "</p>" +
+            "<p class='section-title-red'>INACTION RISK</p><p class='section-text'>" + inaction + "</p>" +
+            "<button onclick='acknowledgeIncident()' style='margin-top:10px;width:100%;background:#001a00;border:1px solid #00ff00;color:#00ff00;font-size:12px;font-weight:bold;padding:10px;border-radius:6px;cursor:pointer;letter-spacing:2px;'>OK ACKNOWLEDGE & CLEAR</button>";
+    })
+    .catch(function(e) {
+        briefEl.innerHTML = '<p style="color:#ff4444;">AI briefing unavailable. Check connection.</p>';
+        console.error('AI briefing error:', e);
+    });
+}
+
+function renderBriefingScreen() {
+    document.getElementById('mainScreen').dataset.screen = 'Briefing';
+
+    if (!activeIncident) {
+        // Show idle state + last scan time
+        document.getElementById('mainScreen').innerHTML =
+            "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;'>" +
+                "<span style='color:#0077ff;font-size:18px;font-weight:bold;'>BRIEFING</span>" +
+                "<span style='color:#555555;font-size:11px;font-family:monospace;'>POLLING LIVE</span>" +
+            "</div>" +
+            "<div style='background:#0d0d0d;border:1px solid #1e1e1e;border-radius:8px;padding:24px;text-align:center;margin-bottom:16px;'>" +
+                "<p style='font-size:32px;margin-bottom:8px;'>\uD83D\uDCE1</p>" +
+                "<p style='color:#555555;font-size:13px;letter-spacing:1px;'>SCANNING FOR INCIDENTS</p>" +
+                "<p style='color:#333333;font-size:11px;margin-top:6px;'>Polling WatchGhana feed every 30 seconds</p>" +
+            "</div>" +
+            "<button onclick='pollIncidents()' style='width:100%;background:#001133;border:1px solid #0077ff;color:#0077ff;font-size:13px;font-weight:bold;padding:12px;border-radius:6px;cursor:pointer;letter-spacing:2px;'>\uD83D\uDD04 SCAN NOW</button>";
+        return;
+    }
+
+    var inc = activeIncident;
+    var col = severityColor(inc.severity);
+
+    document.getElementById('mainScreen').innerHTML =
+        "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;'>" +
+            "<span style='color:#0077ff;font-size:18px;font-weight:bold;'>BRIEFING</span>" +
+            "<span style='background:#1a0000;border:1px solid #440000;color:#ff4444;font-size:10px;font-weight:bold;padding:4px 10px;border-radius:4px;letter-spacing:1px;'>\u25CF LIVE</span>" +
+        "</div>" +
+        "<div class='incident-header' style='border-color:" + col + ";margin-bottom:16px;'>" +
+            "<p class='incident-label' style='color:" + col + ";'>" + inc.severity.toUpperCase() + " INCIDENT - " + inc.type.toUpperCase() + "</p>" +
+            "<p class='incident-title'>" + typeIcon(inc.type) + " " + inc.location + "</p>" +
+            "<p style='color:#555555;font-size:10px;font-family:monospace;margin-top:4px;'>" +
+                "BY " + inc.reporter + " (" + inc.reporter_id + ") \u00B7 " + new Date(inc.timestamp).toLocaleTimeString() +
+                (inc.victims ? " \u00B7 VICTIMS: " + inc.victims : "") +
+            "</p>" +
+        "</div>" +
+        "<div id='briefing_content'></div>";
+
+    generateAIBriefing(inc);
+}
+
+// Start polling when page loads
+window.addEventListener('load', function(){ setInterval(pollIncidents, 30000); pollIncidents(); });
+
+
+function showScreen(screenName) {
+    // Clear any running sys interval when leaving
+    if (sysInterval)   { clearInterval(sysInterval);   sysInterval   = null; }
+    if (commsInterval) { clearInterval(commsInterval); commsInterval = null; }
+
+    if (screenName === "Incident Log") {
+        renderIlogScreen();
+
+    } else if (screenName === "Communications") {
+        renderCommsScreen();
+        commsInterval = setInterval(tickComms, 2000);
+
+    } else if (screenName === "Systems Monitor") {
+        renderSysScreen();
+        sysInterval = setInterval(tickSysData, 2000);
+
+    } else if (screenName === "Threat Alerts") {
+        document.getElementById("mainScreen").innerHTML =
+            "<p class='critical'>\u26A0\uFE0F CRITICAL: 1 critical victim(s). Prioritize immediately.</p>";
+
+    } else if (screenName === "Briefing") {
+        renderBriefingScreen();
+
+    } else if (screenName === "Crew Status") {
+        document.getElementById("mainScreen").innerHTML =
+            "<p style='color:#0077ff; font-size:18px; font-weight:bold; margin-bottom:15px;'>ASSETS</p>" +
+            "<div style='display:flex; gap:10px;'>" +
+                "<div style='flex:1;'>" +
+                    "<p style='color:#888888; font-size:11px; font-weight:bold; margin-bottom:8px; letter-spacing:2px;'>PERSONNEL</p>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>COMMANDER</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Mission Commander</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>ALPHA</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Field Operative</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #ffaa00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>BRAVO</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Field Operative</p><p style='color:#ffaa00; font-size:11px; margin:0;'>\u25CF DEPLOYED</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>MEDIC ONE</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Lead Medic</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>MEDIC TWO</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Field Medic</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>DRIVER</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Vehicle Operator</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>PILOT</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Helicopter Pilot</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF ON BOARD</p></div>" +
+                "</div>" +
+                "<div style='flex:1;'>" +
+                    "<p style='color:#888888; font-size:11px; font-weight:bold; margin-bottom:8px; letter-spacing:2px;'>EQUIPMENT</p>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>RAVEN</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Helicopter</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF STANDBY</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>GHOST</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Hypercar</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF STANDBY</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>VIPER</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Stunt Bike</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF STANDBY</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>TITAN</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>ATV</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF STANDBY</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #00ff00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>EYE ONE</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Drone</p><p style='color:#00ff00; font-size:11px; margin:0;'>\u25CF STANDBY</p></div>" +
+                    "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #ffaa00;'><p style='color:#ffffff; font-weight:bold; margin:0; font-size:13px;'>EYE TWO</p><p style='color:#aaaaaa; font-size:11px; margin:2px 0;'>Drone</p><p style='color:#ffaa00; font-size:11px; margin:0;'>\u25CF DEPLOYED</p></div>" +
+                "</div>" +
+            "</div>";
+
+    } else if (screenName === "Map") {
+        document.getElementById("mainScreen").innerHTML =
+            "<p style='color:#0077ff; font-size:18px; font-weight:bold; margin-bottom:5px;'>MAP</p>" +
+            "<div style='background:#111111; padding:8px; border-radius:6px; margin-bottom:10px; display:flex; gap:6px; flex-wrap:wrap;'>" +
+                "<span style='background:#1a1a2e; color:#ffffff; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #0077ff;'>\uD83D\uDEF0\uFE0F Satellite</span>" +
+                "<span style='background:#1a1a2e; color:#ffaa00; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #ffaa00;'>\u26A1 Power</span>" +
+                "<span style='background:#1a1a2e; color:#aaaaaa; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #555555;'>\uD83D\uDE87 Tunnels</span>" +
+                "<span style='background:#1a1a2e; color:#0077ff; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #0077ff;'>\uD83D\uDCA7 Water</span>" +
+                "<span style='background:#1a1a2e; color:#ff0000; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #ff0000;'>\uD83D\uDCCD Incident</span>" +
+                "<span style='background:#1a1a2e; color:#00ff00; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #00ff00;'>\uD83D\uDE97 Vehicle</span>" +
+                "<span style='background:#1a1a2e; color:#ffaa00; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #ffaa00;'>\uD83D\uDC64 Assets</span>" +
+            "</div>" +
+            "<div id='map' style='width:100%; height:400px; border-radius:8px; border:1px solid #333333;'></div>" +
+            "<div style='background:#111111; padding:10px; border-radius:6px; margin-top:10px;'>" +
+                "<p style='color:#ff0000; font-weight:bold; margin:0 0 5px 0; font-size:13px;'>\uD83D\uDCCD ACTIVE INCIDENT</p>" +
+                "<p style='color:#cccccc; font-size:13px; margin:0;'>Flash Flood - Weija / West Hills Mall</p>" +
+                "<p style='color:#aaaaaa; font-size:12px; margin:3px 0 0 0;'>5.5502deg N, 0.2715deg W</p>" +
+            "</div>";
+
+        setTimeout(function() {
+            if (typeof L !== 'undefined') {
+                var map = L.map('map').setView([5.5502, -0.2715], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OpenStreetMap' }).addTo(map);
+                var incidentMarker = L.marker([5.5502, -0.2715]).addTo(map);
+                incidentMarker.bindPopup("<b>ACTIVE INCIDENT</b><br>Flash Flood - Weija").openPopup();
+            }
+        }, 100);
+
+    } else if (screenName === "Video Feed") {
+        document.getElementById("mainScreen").innerHTML =
+            "<p style='color:#0077ff; font-size:18px; font-weight:bold; margin-bottom:5px;'>VIDEO FEED</p>" +
+            "<p style='color:#888888; font-size:12px; margin-bottom:15px;'>Tap any feed to maximize. Tap again to return.</p>" +
+            "<div class='feed-grid'>" +
+                "<div class='feed-card' id='feed1' onclick='toggleFeed(\"feed1\")'>" +
+                    "<div class='feed-screen'><span style='color:#ffaa00; font-size:11px; font-weight:bold; position:absolute; top:6px; left:8px;'><span class='feed-status-dot' style='background:#ffaa00;'></span>LIVE</span><span style='color:#555555; font-size:28px;'>\uD83D\uDCE1</span><span style='color:#555555; font-size:11px; position:absolute; bottom:6px; right:8px;'>EYE ONE</span></div>" +
+                    "<div class='feed-label'><span class='feed-name'>EYE ONE</span><span class='feed-info'>Drone * Standby</span></div>" +
+                "</div>" +
+                "<div class='feed-card' id='feed2' onclick='toggleFeed(\"feed2\")'>" +
+                    "<div class='feed-screen'><span style='color:#ff0000; font-size:11px; font-weight:bold; position:absolute; top:6px; left:8px;'><span class='feed-status-dot' style='background:#ff0000;'></span>LIVE</span><span style='color:#555555; font-size:28px;'>\uD83C\uDFA5</span><span style='color:#555555; font-size:11px; position:absolute; bottom:6px; right:8px;'>EYE TWO</span></div>" +
+                    "<div class='feed-label'><span class='feed-name'>EYE TWO</span><span class='feed-info'>Drone * Deployed</span></div>" +
+                "</div>" +
+                "<div class='feed-card' id='feed3' onclick='toggleFeed(\"feed3\")'>" +
+                    "<div class='feed-screen'><span style='color:#00ff00; font-size:11px; font-weight:bold; position:absolute; top:6px; left:8px;'><span class='feed-status-dot' style='background:#00ff00;'></span>LIVE</span><span style='color:#555555; font-size:28px;'>\uD83D\uDE81</span><span style='color:#555555; font-size:11px; position:absolute; bottom:6px; right:8px;'>RAVEN CAM</span></div>" +
+                    "<div class='feed-label'><span class='feed-name'>RAVEN CAM</span><span class='feed-info'>Helicopter * Standby</span></div>" +
+                "</div>" +
+                "<div class='feed-card' id='feed4' onclick='toggleFeed(\"feed4\")'>" +
+                    "<div class='feed-screen'><span style='color:#888888; font-size:11px; font-weight:bold; position:absolute; top:6px; left:8px;'><span class='feed-status-dot' style='background:#888888;'></span>OFFLINE</span><span style='color:#555555; font-size:28px;'>\uD83D\uDCF7</span><span style='color:#555555; font-size:11px; position:absolute; bottom:6px; right:8px;'>EXT CAM</span></div>" +
+                    "<div class='feed-label'><span class='feed-name'>EXT CAM</span><span class='feed-info'>External * Offline</span></div>" +
+                "</div>" +
+            "</div>";
+
+    } else if (screenName === "Resources") {
+        document.getElementById("mainScreen").innerHTML =
+            "<p style='color:#0077ff; font-size:18px; font-weight:bold; margin-bottom:5px;'>RESOURCES</p>" +
+            "<p style='color:#888888; font-size:11px; margin-bottom:15px;'>\uD83D\uDCCD Weija / West Hills Mall * Auto-populated from Map + Feed</p>" +
+            "<div style='display:flex; gap:10px;'>" +
+                "<div style='flex:1;'>" +
+                    "<p style='color:#00ff00; font-size:11px; font-weight:bold; margin-bottom:8px; letter-spacing:1px;'>\u2705 AVAILABLE</p>" +
+                    resourceCard("\uD83C\uDFE5", "Korle Bu Hospital", "Trauma Center", "6.2 km", "AVAILABLE", "#00ff00", "Full emergency capacity.") +
+                    resourceCard("\uD83D\uDE92", "Dansoman Fire Stn", "Fire & Rescue", "2.1 km", "AVAILABLE", "#00ff00", "Water rescue on site.") +
+                    resourceCard("\u26F0\uFE0F", "Mall Rooftop", "Elevated Platform", "0.0 km", "AVAILABLE", "#00ff00", "Viable evacuation point.") +
+                    resourceCard("\uD83C\uDF0A", "GWCL Pump Stn", "Water Control", "1.4 km", "AVAILABLE", "#00ff00", "Drainage coordination.") +
+                    resourceCard("\uD83D\uDE91", "Weija Clinic", "Medical Post", "0.8 km", "AVAILABLE", "#00ff00", "Stable victim treatment.") +
+                "</div>" +
+                "<div style='flex:1;'>" +
+                    "<p style='color:#ff0000; font-size:11px; font-weight:bold; margin-bottom:8px; letter-spacing:1px;'>\u26A0\uFE0F HAZARDS</p>" +
+                    resourceCard("\u26A1", "ECG Substation", "Electrical", "0.3 km", "HAZARD", "#ff0000", "Electrocution risk. Avoid.") +
+                    resourceCard("\uD83C\uDF0A", "Weija Dam", "Water Infra", "1.9 km", "MONITOR", "#ffaa00", "Monitor water release.") +
+                    resourceCard("\u26FD", "Total Filling Stn", "Fuel Storage", "0.5 km", "HAZARD", "#ff0000", "Contamination risk.") +
+                    resourceCard("\uD83C\uDFD7\uFE0F", "Mall Basement", "Structural", "0.0 km", "HAZARD", "#ff0000", "Collapse risk rising.") +
+                "</div>" +
+            "</div>";
+
+    } else {
+        document.getElementById("mainScreen").innerHTML = screenName + " screen loaded.";
+    }
+}
+</script>
+</body>
+</html>

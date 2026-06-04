@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WatchGhana — Field Reporter</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+    --red:    #e8002d;
+    --amber:  #ff9500;
+    --green:  #00c853;
+    --blue:   #0077ff;
+    --bg:     #080808;
+    --surface:#111111;
+    --border: #1e1e1e;
+    --text:   #f0f0f0;
+    --muted:  #555555;
+    --dim:    #2a2a2a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 40px;
+}
+
+/* ── HEADER ── */
+.header {
+    background: #0a0a0a;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.header-logo {
+    width: 36px;
+    height: 36px;
+    background: var(--red);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    color: #fff;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+.header-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: 1px;
+    color: #fff;
+}
+.header-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 1px;
+}
+.header-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1a0000;
+    border: 1px solid #440000;
+    border-radius: 4px;
+    padding: 5px 10px;
+}
+.live-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: blink 1s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+.live-text {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--red);
+    letter-spacing: 2px;
+}
+
+/* ── MAIN ── */
+.main { padding: 20px; max-width: 600px; margin: 0 auto; }
+
+/* ── SECTION LABELS ── */
+.section-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 24px 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── SEVERITY SELECTOR ── */
+.severity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.sev-btn {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+}
+.sev-btn:active { transform: scale(0.97); }
+.sev-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+.sev-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    display: block;
+}
+.sev-btn.critical { border-color: var(--red);   background: #1a0000; }
+.sev-btn.critical .sev-label { color: var(--red); }
+.sev-btn.high     { border-color: var(--amber); background: #1a1000; }
+.sev-btn.high     .sev-label { color: var(--amber); }
+.sev-btn.moderate { border-color: var(--blue);  background: #001133; }
+.sev-btn.moderate .sev-label { color: var(--blue); }
+.sev-btn.selected.critical { box-shadow: 0 0 0 2px var(--red),   0 0 16px rgba(232,0,45,0.3); }
+.sev-btn.selected.high     { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(255,149,0,0.3); }
+.sev-btn.selected.moderate { box-shadow: 0 0 0 2px var(--blue),  0 0 16px rgba(0,119,255,0.2); }
+
+/* ── TYPE GRID ── */
+.type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.type-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s;
+}
+.type-btn:active { transform: scale(0.98); }
+.type-btn.selected {
+    border-color: var(--red);
+    background: #1a0000;
+}
+.type-icon { font-size: 20px; flex-shrink: 0; }
+.type-info {}
+.type-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text);
+    display: block;
+}
+.type-desc { font-size: 10px; color: var(--muted); }
+
+/* ── INPUTS ── */
+.field { margin-bottom: 12px; }
+.field-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+}
+.field-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    transition: border-color 0.2s;
+    appearance: none;
+}
+.field-input:focus { outline: none; border-color: var(--blue); }
+.field-input.error { border-color: var(--red); }
+textarea.field-input { resize: none; line-height: 1.5; }
+select.field-input { cursor: pointer; }
+
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+
+/* ── VICTIM COUNTER ── */
+.victim-counter {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    width: fit-content;
+}
+.vctr-btn {
+    background: var(--dim);
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 300;
+    transition: background 0.15s;
+}
+.vctr-btn:active { background: #3a3a3a; }
+.vctr-val {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 60px;
+    text-align: center;
+    padding: 0 8px;
+}
+.vctr-unknown {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0 12px;
+    font-family: 'Barlow', sans-serif;
+    text-decoration: underline;
+}
+
+/* ── LOCATION ROW ── */
+.loc-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+.loc-row .field { flex: 1; margin-bottom: 0; }
+.btn-gps {
+    background: #001133;
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.btn-gps:active { background: #002266; }
+
+/* ── REPORTER ── */
+.reporter-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.reporter-avatar {
+    width: 32px;
+    height: 32px;
+    background: var(--red);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    color: #fff;
+    flex-shrink: 0;
+}
+.reporter-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.reporter-id   { font-size: 10px; color: var(--muted); font-family: monospace; }
+.reporter-edit { margin-left: auto; color: var(--muted); font-size: 11px; cursor: pointer; text-decoration: underline; }
+
+/* ── SUBMIT ── */
+.submit-area { margin-top: 28px; }
+.btn-submit {
+    width: 100%;
+    background: var(--red);
+    border: none;
+    color: #fff;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    padding: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.btn-submit:active { transform: scale(0.98); background: #c0001f; }
+.btn-submit:disabled { background: #2a2a2a; color: var(--muted); cursor: not-allowed; transform: none; }
+.submit-note { text-align: center; color: var(--muted); font-size: 11px; margin-top: 8px; }
+
+/* ── SUCCESS SCREEN ── */
+.success-screen {
+    display: none;
+    text-align: center;
+    padding: 40px 20px;
+}
+.success-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+    animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes pop { 0%{transform:scale(0)} 100%{transform:scale(1)} }
+.success-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--green);
+    margin-bottom: 8px;
+}
+.success-sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+.success-payload {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: left;
+    font-family: monospace;
+    font-size: 11px;
+    color: #aaaaaa;
+    line-height: 1.6;
+    word-break: break-all;
+    margin-bottom: 20px;
+}
+.success-payload .key   { color: #0077ff; }
+.success-payload .val   { color: #00ff00; }
+.success-payload .sval  { color: #ffaa00; }
+.btn-new {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+}
+
+/* ── VALIDATION ERROR ── */
+.error-msg { color: var(--red); font-size: 11px; margin-top: 4px; display: none; }
+.error-msg.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-brand">
+        <div class="header-logo">WG</div>
+        <div>
+            <div class="header-title">WATCHGHANA</div>
+            <div class="header-sub">Field Reporter</div>
+        </div>
+    </div>
+    <div class="header-live">
+        <div class="live-dot"></div>
+        <span class="live-text">LIVE</span>
+    </div>
+</div>
+
+<div class="main" id="form_area">
+
+    <!-- Reporter identity -->
+    <p class="section-label">Reporter</p>
+    <div class="reporter-row">
+        <div class="reporter-avatar" id="rep_avatar">?</div>
+        <div>
+            <div class="reporter-name" id="rep_name_display">Not signed in</div>
+            <div class="reporter-id" id="rep_id_display">—</div>
+        </div>
+        <span class="reporter-edit" onclick="toggleReporterEdit()">change</span>
+    </div>
+    <div id="reporter_edit" style="display:none; margin-bottom:12px;">
+        <div class="field-row">
+            <div class="field">
+                <label class="field-label">Your Name</label>
+                <input class="field-input" id="rep_name" type="text" placeholder="e.g. Kofi Mensah" oninput="updateReporter()"/>
+            </div>
+            <div class="field">
+                <label class="field-label">Reporter ID</label>
+                <input class="field-input" id="rep_id" type="text" placeholder="e.g. WG-004" oninput="updateReporter()"/>
+            </div>
+        </div>
+    </div>
+
+    <!-- Severity -->
+    <p class="section-label">Severity Level</p>
+    <div class="severity-grid">
+        <div class="sev-btn critical selected" onclick="selectSev('critical', this)">
+            <span class="sev-icon">🔴</span>
+            <span class="sev-label">CRITICAL</span>
+            <span style="font-size:9px; color:#ff4444; display:block; margin-top:2px;">Life at risk now</span>
+        </div>
+        <div class="sev-btn high" onclick="selectSev('high', this)">
+            <span class="sev-icon">🟠</span>
+            <span class="sev-label">HIGH</span>
+            <span style="font-size:9px; color:#ffaa00; display:block; margin-top:2px;">Urgent response</span>
+        </div>
+        <div class="sev-btn moderate" onclick="selectSev('moderate', this)">
+            <span class="sev-icon">🔵</span>
+            <span class="sev-label">MODERATE</span>
+            <span style="font-size:9px; color:#0077ff; display:block; margin-top:2px;">Monitor / respond</span>
+        </div>
+    </div>
+    <div class="error-msg" id="err_sev">Please select a severity level.</div>
+
+    <!-- Incident Type -->
+    <p class="section-label">Incident Type</p>
+    <div class="type-grid" id="type_grid">
+        <div class="type-btn selected" onclick="selectType('fire', this)">
+            <span class="type-icon">🔥</span>
+            <div class="type-info"><span class="type-name">FIRE</span><span class="type-desc">Building, bush, vehicle</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('flood', this)">
+            <span class="type-icon">🌊</span>
+            <div class="type-info"><span class="type-name">FLOOD</span><span class="type-desc">Flash flood, overflow</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('accident', this)">
+            <span class="type-icon">🚗</span>
+            <div class="type-info"><span class="type-name">ACCIDENT</span><span class="type-desc">Road, industrial</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('medical', this)">
+            <span class="type-icon">🏥</span>
+            <div class="type-info"><span class="type-name">MEDICAL</span><span class="type-desc">Mass casualty, outbreak</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('crime', this)">
+            <span class="type-icon">🚨</span>
+            <div class="type-info"><span class="type-name">CRIME</span><span class="type-desc">Violence, armed incident</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('structural', this)">
+            <span class="type-icon">🏗️</span>
+            <div class="type-info"><span class="type-name">STRUCTURAL</span><span class="type-desc">Collapse, explosion</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('hazmat', this)">
+            <span class="type-icon">☢️</span>
+            <div class="type-info"><span class="type-name">HAZMAT</span><span class="type-desc">Chemical, gas, spill</span></div>
+        </div>
+        <div class="type-btn" onclick="selectType('other', this)">
+            <span class="type-icon">⚠️</span>
+            <div class="type-info"><span class="type-name">OTHER</span><span class="type-desc">Unclassified</span></div>
+        </div>
+    </div>
+    <div class="error-msg" id="err_type">Please select an incident type.</div>
+
+    <!-- Location -->
+    <p class="section-label">Location</p>
+    <div class="loc-row">
+        <div class="field">
+            <label class="field-label">Area / Landmark</label>
+            <input class="field-input" id="loc_name" type="text" placeholder="e.g. Weija, West Hills Mall"/>
+        </div>
+        <button class="btn-gps" onclick="getGPS()">📍 GPS</button>
+    </div>
+    <div class="field-row" style="margin-top:8px;">
+        <div class="field">
+            <label class="field-label">Latitude</label>
+            <input class="field-input" id="loc_lat" type="text" placeholder="e.g. 5.5502" readonly style="color:#555;"/>
+        </div>
+        <div class="field">
+            <label class="field-label">Longitude</label>
+            <input class="field-input" id="loc_lng" type="text" placeholder="e.g. -0.2715" readonly style="color:#555;"/>
+        </div>
+    </div>
+    <div class="error-msg" id="err_loc">Please enter a location.</div>
+
+    <!-- Description -->
+    <p class="section-label">Description</p>
+    <div class="field">
+        <label class="field-label">What is happening? <span style="color:#333;">(be specific)</span></label>
+        <textarea class="field-input" id="description" rows="4" placeholder="Describe the situation clearly. Include what you see, how many people are affected, and any immediate dangers..."></textarea>
+        <div class="error-msg" id="err_desc">Please describe the incident.</div>
+    </div>
+
+    <!-- Victims -->
+    <p class="section-label">Victims / Casualties</p>
+    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <div class="victim-counter">
+            <button class="vctr-btn" onclick="adjustVictims(-1)">−</button>
+            <span class="vctr-val" id="victim_count">0</span>
+            <button class="vctr-btn" onclick="adjustVictims(1)">+</button>
+        </div>
+        <button class="vctr-unknown" onclick="setVictimsUnknown()">Unknown / multiple</button>
+        <span style="color:var(--muted); font-size:11px;" id="victim_label">confirmed victims</span>
+    </div>
+
+    <!-- Additional info -->
+    <p class="section-label">Additional Info</p>
+    <div class="field">
+        <label class="field-label">Services already on scene</label>
+        <input class="field-input" id="services" type="text" placeholder="e.g. Police, Fire Service (or leave blank)"/>
+    </div>
+    <div class="field">
+        <label class="field-label">Access route</label>
+        <input class="field-input" id="access" type="text" placeholder="e.g. Via Weija road, north entrance clear"/>
+    </div>
+    <div class="field">
+        <label class="field-label">Media attached</label>
+        <select class="field-input" id="media">
+            <option value="none">No media</option>
+            <option value="photo">Photo taken</option>
+            <option value="video">Video taken</option>
+            <option value="both">Photo + Video</option>
+        </select>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-area">
+        <button class="btn-submit" id="submit_btn" onclick="submitReport()">
+            🚨 SUBMIT INCIDENT REPORT
+        </button>
+        <p class="submit-note">This report will be transmitted to SALVATION AI immediately.</p>
+    </div>
+
+</div>
+
+<!-- Success screen -->
+<div class="success-screen" id="success_screen">
+    <div class="success-icon">✅</div>
+    <div class="success-title">REPORT TRANSMITTED</div>
+    <p class="success-sub">SALVATION AI has been alerted.</p>
+    <div class="success-payload" id="payload_display"></div>
+    <button class="btn-new" onclick="resetForm()">＋ REPORT NEW INCIDENT</button>
+</div>
+
+<script>
+var selectedSeverity = 'critical';
+var selectedType     = 'fire';
+var victimCount      = 0;
+var victimUnknown    = false;
+var reporterName     = '';
+var reporterID       = '';
+
+function selectSev(val, el) {
+    selectedSeverity = val;
+    document.querySelectorAll('.sev-btn').forEach(function(b) { b.classList.remove('selected'); });
+    el.classList.add('selected');
+}
+
+function selectType(val, el) {
+    selectedType = val;
+    document.querySelectorAll('.type-btn').forEach(function(b) { b.classList.remove('selected'); });
+    el.classList.add('selected');
+}
+
+function adjustVictims(delta) {
+    victimUnknown = false;
+    victimCount = Math.max(0, victimCount + delta);
+    document.getElementById('victim_count').textContent = victimCount;
+    document.getElementById('victim_label').textContent = 'confirmed victims';
+    document.getElementById('victim_label').style.color = '';
+}
+
+function setVictimsUnknown() {
+    victimUnknown = true;
+    document.getElementById('victim_count').textContent = '?';
+    document.getElementById('victim_label').textContent = 'unknown \u2014 multiple reported';
+    document.getElementById('victim_label').style.color = '#ffaa00';
+}
+
+function getGPS() {
+    var btn = document.querySelector('.btn-gps');
+    btn.textContent = '\u23F3 Locating...';
+    if (!navigator.geolocation) {
+        btn.textContent = '\uD83D\uDCCD GPS';
+        alert('GPS not available on this device.');
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        document.getElementById('loc_lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('loc_lng').value = pos.coords.longitude.toFixed(6);
+        btn.textContent = '\u2705 Located';
+        setTimeout(function(){ btn.textContent = '\uD83D\uDCCD GPS'; }, 2000);
+    }, function() {
+        btn.textContent = '\uD83D\uDCCD GPS';
+        alert('Could not get GPS location. Please ensure location access is allowed.');
+    });
+}
+
+function toggleReporterEdit() {
+    var el = document.getElementById('reporter_edit');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function updateReporter() {
+    reporterName = document.getElementById('rep_name').value.trim();
+    reporterID   = document.getElementById('rep_id').value.trim();
+    var avatar = document.getElementById('rep_avatar');
+    var nameEl = document.getElementById('rep_name_display');
+    var idEl   = document.getElementById('rep_id_display');
+    if (reporterName) {
+        avatar.textContent = reporterName.charAt(0).toUpperCase();
+        nameEl.textContent = reporterName;
+    } else {
+        avatar.textContent = '?';
+        nameEl.textContent = 'Not signed in';
+    }
+    idEl.textContent = reporterID || '\u2014';
+}
+
+function validate() {
+    var ok = true;
+    var desc = document.getElementById('description').value.trim();
+    var loc  = document.getElementById('loc_name').value.trim();
+
+    document.getElementById('err_desc').classList.toggle('show', !desc);
+    document.getElementById('err_loc').classList.toggle('show',  !loc);
+    if (!desc || !loc) ok = false;
+    return ok;
+}
+
+function submitReport() {
+    if (!validate()) return;
+
+    var now = new Date();
+    var payload = {
+        id:          'WG-' + Date.now(),
+        timestamp:   now.toISOString(),
+        reporter:    reporterName || 'Anonymous',
+        reporter_id: reporterID   || 'UNKNOWN',
+        severity:    selectedSeverity,
+        type:        selectedType,
+        location:    document.getElementById('loc_name').value.trim(),
+        lat:         document.getElementById('loc_lat').value || null,
+        lng:         document.getElementById('loc_lng').value || null,
+        description: document.getElementById('description').value.trim(),
+        victims:     victimUnknown ? 'unknown' : victimCount,
+        services_on_scene: document.getElementById('services').value.trim() || 'none',
+        access_route:      document.getElementById('access').value.trim()   || 'unknown',
+        media:             document.getElementById('media').value,
+        source:            'WatchGhana Field Reporter v1.0'
+    };
+
+    // Show success
+    document.getElementById('form_area').style.display    = 'none';
+    document.getElementById('success_screen').style.display = 'block';
+
+    // Render payload prettily
+    var html = '';
+    for (var k in payload) {
+        var v = payload[k];
+        var vClass = typeof v === 'string' ? 'sval' : 'val';
+        html += '<span class="key">"' + k + '"</span>: <span class="' + vClass + '">' +
+            (typeof v === 'string' ? '"' + v + '"' : v) + '</span>\n';
+    }
+    document.getElementById('payload_display').innerHTML = html;
+
+    // POST to Supabase
+    var SUPABASE_URL = 'https://uusuknamameimexrkfxpr.supabase.co';
+    var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1c3Vrbm1hbWVpbWV4cmtmeHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDU3ODEsImV4cCI6MjA5NTkyMTc4MX0.SI5Sm7qSiOnrkyLYZ1seMDhYsEckMbmoZiBA98kLfgY';
+    fetch(SUPABASE_URL + '/rest/v1/incidents', {
+        method: 'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'apikey':        SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Prefer':        'return=minimal'
+        },
+        body: JSON.stringify(payload)
+    }).then(function(res) {
+        if (!res.ok) { res.text().then(function(t){ console.error('Supabase error:', t); }); }
+        else { console.log('Report saved to Supabase:', payload.id); }
+    }).catch(function(err) { console.error('Network error:', err); });
+}
+
+function resetForm() {
+    document.getElementById('form_area').style.display    = 'block';
+    document.getElementById('success_screen').style.display = 'none';
+    document.getElementById('description').value = '';
+    document.getElementById('loc_name').value    = '';
+    document.getElementById('loc_lat').value     = '';
+    document.getElementById('loc_lng').value     = '';
+    document.getElementById('services').value    = '';
+    document.getElementById('access').value      = '';
+    victimCount   = 0;
+    victimUnknown = false;
+    document.getElementById('victim_count').textContent = '0';
+    document.getElementById('victim_label').textContent = 'confirmed victims';
+    document.getElementById('victim_label').style.color = '';
+    document.querySelectorAll('.error-msg').forEach(function(e){ e.classList.remove('show'); });
+}
+</script>
+</body>
+</html>
